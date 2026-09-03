@@ -1,0 +1,209 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum AccountType {
+  INDIVIDUAL_PLAYER
+  COACH
+}
+
+enum OwnerType {
+  SELF
+  COACH
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}
+
+model User {
+  id           String      @id @default(uuid()) @db.Uuid
+  supabaseId   String?     @unique @map("supabase_id")
+  email        String      @unique
+  passwordHash String?     @map("password_hash")
+  accountType  AccountType @map("account_type")
+  fullName     String      @map("full_name")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+
+  ownedProfiles   PlayerProfile[]  @relation("ProfileOwner")
+  claimedProfiles PlayerProfile[]  @relation("ProfileClaimed")
+  coachLinks      CoachPlayerLink[]
+  invitesSent     ProfileInvite[]
+  refreshTokens   RefreshToken[]
+  drillTemplates  DrillTemplate[]
+
+  @@map("users")
+}
+
+model PlayerProfile {
+  id              String    @id @default(uuid()) @db.Uuid
+  ownerUserId     String    @map("owner_user_id") @db.Uuid
+  ownerType       OwnerType @map("owner_type")
+  claimedByUserId String?   @map("claimed_by_user_id") @db.Uuid
+  name            String
+  dateOfBirth     DateTime? @map("date_of_birth") @db.Date
+  handicap        Decimal?  @db.Decimal(4, 1)
+  photoUrl        String?   @map("photo_url")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  owner     User               @relation("ProfileOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  claimedBy User?              @relation("ProfileClaimed", fields: [claimedByUserId], references: [id])
+  coachLinks CoachPlayerLink[]
+  invites    ProfileInvite[]
+  rounds     Round[]
+  sessions   PracticeSession[]
+
+  @@index([ownerUserId], map: "idx_profiles_owner")
+  @@map("player_profiles")
+}
+
+model CoachPlayerLink {
+  id              String @id @default(uuid()) @db.Uuid
+  coachUserId     String @map("coach_user_id") @db.Uuid
+  playerProfileId String @map("player_profile_id") @db.Uuid
+
+  coach   User          @relation(fields: [coachUserId], references: [id], onDelete: Cascade)
+  profile PlayerProfile @relation(fields: [playerProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([coachUserId, playerProfileId])
+  @@map("coach_player_links")
+}
+
+model ProfileInvite {
+  id              String       @id @default(uuid()) @db.Uuid
+  playerProfileId String       @map("player_profile_id") @db.Uuid
+  coachUserId     String       @map("coach_user_id") @db.Uuid
+  email           String
+  tokenHash       String       @map("token_hash")
+  expiresAt       DateTime     @map("expires_at")
+  acceptedAt      DateTime?    @map("accepted_at")
+  status          InviteStatus @default(PENDING)
+
+  profile PlayerProfile @relation(fields: [playerProfileId], references: [id], onDelete: Cascade)
+  coach   User          @relation(fields: [coachUserId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash])
+  @@map("profile_invites")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+model DrillTemplate {
+  id               String   @id @default(uuid()) @db.Uuid
+  createdByUserId  String?  @map("created_by_user_id") @db.Uuid
+  name             String
+  holesCount       Int      @default(9) @map("holes_count")
+  shotTypes        String[] @map("shot_types")
+  scoringRule      Json     @map("scoring_rule")
+  isSystemDefault  Boolean  @default(false) @map("is_system_default")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  createdBy User?              @relation(fields: [createdByUserId], references: [id])
+  sessions  PracticeSession[]
+
+  @@map("drill_templates")
+}
+
+model Round {
+  id              String   @id @default(uuid()) @db.Uuid
+  playerProfileId String   @map("player_profile_id") @db.Uuid
+  courseName      String?  @map("course_name")
+  teesPlayed      String?  @map("tees_played")
+  roundDate       DateTime @map("round_date") @db.Date
+  totalScore      Int?     @map("total_score")
+  totalPutts      Int?     @map("total_putts")
+  fairwaysHit     Int?     @map("fairways_hit")
+  greensInReg     Int?     @map("greens_in_reg")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  profile PlayerProfile @relation(fields: [playerProfileId], references: [id], onDelete: Cascade)
+  holes   RoundHole[]
+
+  @@index([playerProfileId, roundDate(sort: Desc)], map: "idx_rounds_profile_date")
+  @@map("rounds")
+}
+
+model RoundHole {
+  id             String  @id @default(uuid()) @db.Uuid
+  roundId        String  @map("round_id") @db.Uuid
+  holeNumber     Int     @map("hole_number")
+  par            Int?
+  score          Int
+  putts          Int?
+  fairwayHit     Boolean? @map("fairway_hit")
+  greenInReg     Boolean? @map("green_in_reg")
+  clubUsed       String?  @map("club_used")
+  penaltyStrokes Int      @default(0) @map("penalty_strokes")
+
+  round Round @relation(fields: [roundId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, holeNumber])
+  @@map("round_holes")
+}
+
+model PracticeSession {
+  id              String   @id @default(uuid()) @db.Uuid
+  playerProfileId String   @map("player_profile_id") @db.Uuid
+  drillTemplateId String?  @map("drill_template_id") @db.Uuid
+  sessionDate     DateTime @map("session_date") @db.Date
+  durationMinutes Int?     @map("duration_minutes")
+  category        String?
+  notes           String?
+  sessionTotal    Decimal  @map("session_total") @db.Decimal(6, 2)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  profile PlayerProfile    @relation(fields: [playerProfileId], references: [id], onDelete: Cascade)
+  drill   DrillTemplate?   @relation(fields: [drillTemplateId], references: [id])
+  holes   SessionHoleEntry[]
+
+  @@index([playerProfileId, sessionDate(sort: Desc)], map: "idx_sessions_profile_date")
+  @@map("practice_sessions")
+}
+
+model SessionHoleEntry {
+  id                 String  @id @default(uuid()) @db.Uuid
+  practiceSessionId  String  @map("practice_session_id") @db.Uuid
+  holeNumber         Int     @map("hole_number")
+  holeTotal          Decimal @map("hole_total") @db.Decimal(5, 2)
+
+  session PracticeSession     @relation(fields: [practiceSessionId], references: [id], onDelete: Cascade)
+  shots   SessionShotResult[]
+
+  @@unique([practiceSessionId, holeNumber])
+  @@map("session_hole_entries")
+}
+
+model SessionShotResult {
+  id                  String  @id @default(uuid()) @db.Uuid
+  sessionHoleEntryId  String  @map("session_hole_entry_id") @db.Uuid
+  shotType            String  @map("shot_type")
+  shotsTaken          String  @map("shots_taken")
+  proximity           String?
+  pointsEarned        Decimal @map("points_earned") @db.Decimal(4, 1)
+
+  hole SessionHoleEntry @relation(fields: [sessionHoleEntryId], references: [id], onDelete: Cascade)
+
+  @@map("session_shot_results")
+}

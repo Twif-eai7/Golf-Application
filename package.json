@@ -1,0 +1,21 @@
+{
+  "name": "fairway-log",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev:api": "pnpm --filter @fairwaylog/api dev",
+    "dev:mobile": "pnpm --filter @fairwaylog/mobile start",
+    "dev": "concurrently \"pnpm dev:api\" \"pnpm dev:mobile\"",
+    "test": "pnpm -r test",
+    "test:shared": "pnpm --filter @fairwaylog/shared test",
+    "test:api": "pnpm --filter @fairwaylog/api test",
+    "regression": "API_URL=http://localhost:4000 pnpm --filter @fairwaylog/api exec tsx ../../scripts/regression.ts",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:seed": "pnpm --filter @fairwaylog/api exec tsx prisma/seed.ts",
+    "db:migrate": "pnpm --filter @fairwaylog/api exec prisma migrate deploy"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

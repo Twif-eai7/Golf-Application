@@ -1,0 +1,17 @@
+node_modules
+dist
+build
+.expo
+.turbo
+*.log
+.env
+.env.local
+coverage
+.DS_Store
+apps/api/generated
+apps/mock-api/db.json
+!apps/mock-api/db.seed.json
+apps/mobile/.expo
+apps/mobile/dist
+*.tsbuildinfo
+postgres-data

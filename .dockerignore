@@ -1,0 +1,16 @@
+node_modules
+**/node_modules
+dist
+**/dist
+.expo
+**/.expo
+*.log
+.env
+.env.local
+apps/mobile
+docker-compose.yml
+postgres-data
+.git
+.DS_Store
+*.tsbuildinfo
+coverage
