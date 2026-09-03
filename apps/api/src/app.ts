@@ -9,6 +9,8 @@ import { errorHandler } from "./lib/http.js";
 
 export function createApp() {
   const app = express();
+  // Trust Google Cloud Run / load balancer proxy headers
+  app.set("trust proxy", 1);
   app.use(helmet());
   app.use(cors({ origin: config.corsOrigin === "*" ? true : config.corsOrigin, credentials: true }));
   app.use(express.json({ limit: "1mb" }));
