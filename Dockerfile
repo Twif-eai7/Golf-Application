@@ -50,10 +50,11 @@ COPY --from=build /app/apps/api/dist ./apps/api/dist
 # Copy Prisma generated client (root-level pnpm store location)
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 
-# Copy prisma schema (for any runtime migration calls)
+# Copy prisma schema + migrations (needed for migrate deploy at startup)
 COPY apps/api/prisma ./apps/api/prisma
 
 # Cloud Run sets PORT env var (usually 8080)
 EXPOSE 8080
 WORKDIR /app/apps/api
-CMD ["node", "dist/index.js"]
+# Run DB migrations on startup, then start server
+CMD ["sh", "-c", "pnpm exec prisma migrate deploy && node dist/index.js"]
