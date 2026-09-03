@@ -8,7 +8,7 @@ import {
   PROXIMITY_BANDS,
   SHOT_TYPES,
   SHOTS_TAKEN,
-} from "./constants";
+} from "./constants.js";
 
 export const scoringRuleSchema = z.object({
   shots_to_points: z.record(z.string(), z.number()),
