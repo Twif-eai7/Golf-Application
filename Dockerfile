@@ -1,48 +1,52 @@
-# ── Stage 1: install all workspace dependencies ───────────────────────────────
-FROM node:20-alpine AS deps
-WORKDIR /app
-RUN corepack enable && corepack prepare pnpm@9 --activate
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
-COPY packages/shared/package.json packages/shared/
-COPY apps/api/package.json apps/api/
-RUN pnpm install --frozen-lockfile
-
-# ── Stage 2: build shared then API ────────────────────────────────────────────
+# ── Single build stage ────────────────────────────────────────────────────────
 FROM node:20-alpine AS build
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@9 --activate
-# Restore installed deps
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules 2>/dev/null || true
-# Copy source
-COPY package.json pnpm-workspace.yaml .npmrc ./
+
+# Copy all workspace manifests and lockfile
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY packages/shared/package.json packages/shared/
+COPY apps/api/package.json apps/api/
+
+# Install all deps, skip postinstall (prisma generate needs schema first)
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# Copy full source
 COPY packages/shared ./packages/shared
 COPY apps/api ./apps/api
-# 1. Compile shared → packages/shared/dist
+
+# Build shared package → packages/shared/dist (needed for runtime resolution)
 RUN pnpm --filter @fairwaylog/shared run build
-# 2. Generate Prisma client
+
+# Generate Prisma client now that schema.prisma is present
 RUN pnpm --filter @fairwaylog/api exec prisma generate
-# 3. Compile API TypeScript → apps/api/dist
+
+# Compile API TypeScript → apps/api/dist
 RUN pnpm --filter @fairwaylog/api run build
 
-# ── Stage 3: lean production image ────────────────────────────────────────────
+# ── Lean production image ─────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 RUN corepack enable && corepack prepare pnpm@9 --activate
-# Install production deps only
+
+# Install prod deps only (no scripts — prisma client copied from build)
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/api/package.json apps/api/
-RUN pnpm install --frozen-lockfile --prod
-# Copy compiled shared dist (needed for @fairwaylog/shared resolution at runtime)
+RUN pnpm install --frozen-lockfile --prod --ignore-scripts
+
+# Copy compiled outputs
 COPY --from=build /app/packages/shared/dist ./packages/shared/dist
-# Copy compiled API dist
 COPY --from=build /app/apps/api/dist ./apps/api/dist
-# Copy Prisma generated client and schema (for migrations at startup if needed)
-COPY --from=build /app/apps/api/node_modules/.prisma ./apps/api/node_modules/.prisma
+
+# Copy Prisma generated client (root-level pnpm store location)
+COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
+
+# Copy prisma schema (for any runtime migration calls)
 COPY apps/api/prisma ./apps/api/prisma
-# Cloud Run injects PORT (usually 8080); config.ts reads process.env.PORT
+
+# Cloud Run sets PORT env var (usually 8080)
 EXPOSE 8080
 WORKDIR /app/apps/api
 CMD ["node", "dist/index.js"]
