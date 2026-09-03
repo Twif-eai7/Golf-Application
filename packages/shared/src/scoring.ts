@@ -1,5 +1,5 @@
-import type { ScoringRule } from "./schemas.js";
-import type { ProximityBand, ShotsTaken } from "./constants.js";
+import type { ScoringRule } from "./schemas";
+import type { ProximityBand, ShotsTaken } from "./constants";
 
 export type RawShotInput = {
   shotType: string;

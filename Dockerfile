@@ -17,6 +17,13 @@ COPY apps/api ./apps/api
 
 # Build shared package → packages/shared/dist (needed for runtime resolution)
 RUN pnpm --filter @fairwaylog/shared run build
+# Patch compiled dist: add .js extensions to relative imports (Node.js ESM requires them)
+# Source files omit .js for Metro/React Native compatibility
+RUN for f in packages/shared/dist/*.js; do \
+      sed -i 's|from "./constants"|from "./constants.js"|g' "$f"; \
+      sed -i 's|from "./schemas"|from "./schemas.js"|g' "$f"; \
+      sed -i 's|from "./scoring"|from "./scoring.js"|g' "$f"; \
+    done
 
 # Generate Prisma client now that schema.prisma is present
 RUN pnpm --filter @fairwaylog/api exec prisma generate
