@@ -39,8 +39,7 @@ jobs:
             --allow-unauthenticated \
             --port 8080 \
             --memory 512Mi \
-            --project ${{ env.PROJECT_ID }} \
-            --set-env-vars "NODE_ENV=production,CORS_ORIGIN=*,DATABASE_URL=${{ secrets.DATABASE_URL }},DIRECT_URL=${{ secrets.DIRECT_URL }},SUPABASE_URL=${{ secrets.SUPABASE_URL }},SUPABASE_SERVICE_KEY=${{ secrets.SUPABASE_SERVICE_KEY }},JWT_ACCESS_SECRET=${{ secrets.JWT_ACCESS_SECRET }},JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}"
+            --project ${{ env.PROJECT_ID }}
 
       - name: Show Service URL
         run: |
