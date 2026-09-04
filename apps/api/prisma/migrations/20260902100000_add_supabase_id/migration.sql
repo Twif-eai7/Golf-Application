@@ -1,5 +1,5 @@
 -- AlterTable: add supabase_id to users for Supabase Auth integration
-ALTER TABLE "users" ADD COLUMN "supabase_id" TEXT;
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "supabase_id" TEXT;
 
 -- CreateIndex
-CREATE UNIQUE INDEX "users_supabase_id_key" ON "users"("supabase_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "users_supabase_id_key" ON "users"("supabase_id");

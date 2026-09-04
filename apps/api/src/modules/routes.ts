@@ -50,6 +50,9 @@ function catchAsync(fn: (req: AuthedRequest, res: import("express").Response) =>
 // Lazy Supabase admin client — only created when sync endpoint is called
 let _supabaseAdmin: ReturnType<typeof createClient> | null = null;
 function getSupabaseAdmin() {
+  if (!config.supabaseUrl || !config.supabaseServiceKey) {
+    throw new ApiError(500, "CONFIG_ERROR", "Supabase is not configured on the server");
+  }
   if (!_supabaseAdmin) {
     _supabaseAdmin = createClient(config.supabaseUrl, config.supabaseServiceKey, {
       auth: { autoRefreshToken: false, persistSession: false },
@@ -97,45 +100,49 @@ apiRouter.post("/auth/sync", catchAsync(async (req, res) => {
     sbUser.email?.split("@")[0] ??
     "Player";
 
-  // Find or create our internal user record
+  const email = (sbUser.email ?? "").toLowerCase() || `${sbUser.id}@users.noreply`;
+
   let foundUser = await prisma.user.findFirst({
-    where: { OR: [{ supabaseId: sbUser.id }, { email: sbUser.email ?? "" }] },
+    where: { OR: [{ supabaseId: sbUser.id }, { email }] },
   });
 
   if (!foundUser) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    foundUser = await (prisma.user.create as any)({
+    foundUser = await prisma.user.create({
       data: {
         id: newId(),
         supabaseId: sbUser.id,
-        email: sbUser.email ?? resolvedName,
+        email,
         fullName: resolvedName,
         accountType: resolvedType,
-        passwordHash: null,
+        // Empty string satisfies older DBs where password_hash is still NOT NULL
+        passwordHash: "",
       },
     });
-    // Auto-create player profile for individual players
-    if (resolvedType === "INDIVIDUAL_PLAYER") {
-      const profileId = newId();
-      await prisma.playerProfile.create({
-        data: {
-          id: profileId,
-          ownerUserId: foundUser!.id,
-          ownerType: "SELF",
-          claimedByUserId: foundUser!.id,
-          name: resolvedName,
-        },
-      });
-    }
-  } else if (!(foundUser as unknown as { supabaseId?: string | null }).supabaseId) {
-    // Link existing email-based user to Supabase
+  } else if (!foundUser.supabaseId) {
     foundUser = await prisma.user.update({
       where: { id: foundUser.id },
-      data: { supabaseId: sbUser.id },
+      data: { supabaseId: sbUser.id, fullName: foundUser.fullName || resolvedName },
     });
   }
 
-  const tokenPair = await issueTokenPair(foundUser!);
+  if (foundUser.accountType === "INDIVIDUAL_PLAYER") {
+    const existingProfile = await prisma.playerProfile.findFirst({
+      where: { ownerUserId: foundUser.id },
+    });
+    if (!existingProfile) {
+      await prisma.playerProfile.create({
+        data: {
+          id: newId(),
+          ownerUserId: foundUser.id,
+          ownerType: "SELF",
+          claimedByUserId: foundUser.id,
+          name: foundUser.fullName || resolvedName,
+        },
+      });
+    }
+  }
+
+  const tokenPair = await issueTokenPair(foundUser);
   res.json(tokenPair);
 }));
 

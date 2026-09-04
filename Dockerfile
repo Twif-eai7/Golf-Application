@@ -56,5 +56,5 @@ COPY apps/api/prisma ./apps/api/prisma
 # Cloud Run sets PORT env var (usually 8080)
 EXPOSE 8080
 WORKDIR /app/apps/api
-# Run DB migrations on startup, then start server
-CMD ["sh", "-c", "pnpm exec prisma migrate deploy && node dist/index.js"]
+# Migrate against the direct DB URL (pooler URLs cannot run DDL), then start
+CMD ["sh", "-c", "DATABASE_URL=\"${DIRECT_URL:-$DATABASE_URL}\" pnpm exec prisma migrate deploy || echo 'prisma migrate deploy failed — continuing'; node dist/index.js"]

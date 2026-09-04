@@ -84,5 +84,6 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     return;
   }
   console.error(err);
-  sendError(res, 500, "INTERNAL", "Unexpected error");
+  const message = err instanceof Error ? err.message : "Unexpected error";
+  sendError(res, 500, "INTERNAL", message);
 }
